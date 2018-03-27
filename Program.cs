@@ -23,7 +23,7 @@ namespace seleniumscreenshotwizard
 
             if (args.Length < 4)
             {
-                Console.WriteLine("Error: must specify three arguments: (1) source file, (2) window width, (3) window height, (4) output directory");
+                Console.WriteLine("Error: must specify four arguments: (1) source file, (2) window width, (3) window height, (4) output directory");
                 Console.ReadLine();
                 Environment.Exit(0);
             }
@@ -33,16 +33,11 @@ namespace seleniumscreenshotwizard
             var windowHeight = args[2];
             var outputDirectory = args[3];
 
-            if (!Directory.Exists(outputDirectory))
+            if (Directory.Exists(outputDirectory))
             {
-                Directory.CreateDirectory(outputDirectory);
+                Directory.Delete(outputDirectory, true);
             }
-            else
-            {
-                Directory.Delete(outputDirectory,true);
-                Thread.Sleep(250);
-                Directory.CreateDirectory(outputDirectory);
-            }                
+            Directory.CreateDirectory(outputDirectory);
 
             int widthParsed;
             int heightParsed;
@@ -85,7 +80,7 @@ namespace seleniumscreenshotwizard
             {
                 BrowserTypes currType = (BrowserTypes)i;
                 IWebDriver webDriver = null;
-                String typePrefix = "IeEdge_";
+                String typePrefix = "Unknown_";
 
                 switch ((int)currType)
                 {
@@ -110,35 +105,15 @@ namespace seleniumscreenshotwizard
                         if (fileContents[j].Substring(0, 2) == "[[")
                         {
                             //Tagged extra step
-                            MethodInfo[] props = typeof(ExtraSteps).GetMethods();
-                            foreach (MethodInfo prop in props)
-                            {
-                                object[] attrs = prop.GetCustomAttributes(true);
-                                foreach (object attr in attrs)
-                                {
-                                    ExtraStepAttribute authAttr = attr as ExtraStepAttribute;
-                                    if (authAttr != null)
-                                    {
-                                        string propName = prop.Name;
-                                        string thisPropTag = authAttr.StepTag;
-
-                                        if (thisPropTag == fileContents[j])
-                                        {
-                                            object[] parameters = new object[1];
-                                            parameters[0] = webDriver;
-                                            prop.Invoke(null, parameters);
-                                        }
-                                    }
-                                }
-                            }
+                            DoExtraTaggedStep(fileContents[j], webDriver);
                         }
                         else
                         {
                             webDriver.Navigate().GoToUrl(fileContents[j]);
                             Thread.Sleep(2000);
                             webDriver.Manage().Window.Size = new System.Drawing.Size(widthParsed, heightParsed);
-                            Screenshot chromess = ((ITakesScreenshot)webDriver).GetScreenshot();
-                            chromess.SaveAsFile(Path.Combine(outputDirectory, String.Format("{3}_{0}x{1}_{2}.JPG", widthParsed, heightParsed, j, typePrefix)), ScreenshotImageFormat.Jpeg);
+                            Screenshot screenshot = ((ITakesScreenshot)webDriver).GetScreenshot();
+                            screenshot.SaveAsFile(Path.Combine(outputDirectory, String.Format("{3}_{0}x{1}_{2}.JPG", widthParsed, heightParsed, j, typePrefix)), ScreenshotImageFormat.Jpeg);
 
                             totalCountDone++;
                             Console.Clear();
@@ -161,6 +136,31 @@ namespace seleniumscreenshotwizard
             Console.WriteLine("Job done.");
 
             Console.ReadLine();
+        }
+
+        private static void DoExtraTaggedStep(string tag, IWebDriver webDriver)
+        {
+            MethodInfo[] props = typeof(ExtraSteps).GetMethods();
+            foreach (MethodInfo prop in props)
+            {
+                object[] attrs = prop.GetCustomAttributes(true);
+                foreach (object attr in attrs)
+                {
+                    ExtraStepAttribute authAttr = attr as ExtraStepAttribute;
+                    if (authAttr != null)
+                    {
+                        string propName = prop.Name;
+                        string thisPropTag = authAttr.StepTag;
+
+                        if (thisPropTag == tag)
+                        {
+                            object[] parameters = new object[1];
+                            parameters[0] = webDriver;
+                            prop.Invoke(null, parameters);
+                        }
+                    }
+                }
+            }
         }
     }
 }
